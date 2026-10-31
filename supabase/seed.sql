@@ -1,0 +1,3 @@
+-- Development-only seed placeholder. Intentionally no statements.
+-- Do not copy local demo passwords, real customer data or access keys into seeds.
+-- Production administrator provisioning must be a separate controlled operation.

@@ -1,0 +1,123 @@
+// PostgreSQL reference design. The running local edition uses lib/db.ts (SQLite).
+// Install Prisma and implement a repository adapter before selecting PostgreSQL.
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model Outlet {
+  id       String @id
+  name     String
+  users    Staff[]
+  products Product[]
+  orders   Order[]
+  ingredients Ingredient[]
+  operations Operation[]
+  audit AuditEvent[]
+}
+model Staff {
+  id       String @id
+  outletId String
+  outlet   Outlet @relation(fields: [outletId], references: [id])
+  name     String
+  role     String
+  salt     String
+  passwordHash String
+  sessions Session[]
+  @@index([outletId])
+}
+model Session {
+  tokenHash String @id
+  staffId String
+  staff Staff @relation(fields: [staffId], references: [id])
+  expiresAt DateTime
+}
+model Product {
+  id String @id
+  outletId String
+  outlet Outlet @relation(fields: [outletId], references: [id])
+  name String
+  category String
+  pricePaise Int
+  taxBps Int
+  available Boolean @default(true)
+  station String
+  variants Json
+  modifiers Json
+  recipe Json
+  @@index([outletId])
+}
+model Ingredient {
+  id String @id
+  outletId String
+  outlet Outlet @relation(fields: [outletId], references: [id])
+  name String
+  unit String
+  quantity Decimal @db.Decimal(18,3)
+  reorderLevel Decimal @db.Decimal(18,3)
+  @@index([outletId])
+}
+model Order {
+  id String @id
+  outletId String
+  outlet Outlet @relation(fields: [outletId], references: [id])
+  number Int
+  version Int @default(1)
+  status String
+  mode String
+  tableNo Int?
+  customer String?
+  lines Json
+  subtotalPaise Int
+  discountPaise Int
+  taxPaise Int
+  totalPaise Int
+  refundPaise Int @default(0)
+  invoice String? @unique
+  createdAt DateTime @default(now())
+  paidAt DateTime?
+  tickets KitchenTicket[]
+  payments Payment[]
+  @@unique([outletId,number])
+  @@index([outletId,paidAt])
+}
+model KitchenTicket {
+  id String @id
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  station String
+  status String
+  lines Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Payment {
+  id String @id
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  method String
+  amountPaise Int
+  reference String?
+  confirmation String
+  @@index([orderId])
+}
+model Operation {
+  id String @id
+  outletId String
+  outlet Outlet @relation(fields: [outletId], references: [id])
+  actorId String
+  fingerprint String
+  result Json
+}
+model AuditEvent {
+  id String @id
+  outletId String
+  outlet Outlet @relation(fields: [outletId], references: [id])
+  actorId String
+  action String
+  detail String
+  createdAt DateTime @default(now())
+  @@index([outletId,createdAt])
+}

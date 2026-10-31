@@ -1,0 +1,93 @@
+{
+  "browser": {
+    "mode": "launch",
+    "executable_path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "headless": true
+  },
+  "start_url": { "url": "http://127.0.0.1:3100" },
+  "secrets": [
+    {
+      "secret_id": "test_password",
+      "environment_variable": "CAFEOS_E2E_PASSWORD"
+    }
+  ],
+  "actions": [
+    {
+      "step_id": "password",
+      "action": "fill",
+      "locator": { "kind": "css", "selector": "input[type=password]" },
+      "value": { "source": "secret", "secret_id": "test_password" },
+      "timeout_ms": 20000
+    },
+    {
+      "step_id": "login",
+      "action": "click",
+      "locator": { "kind": "role", "role": "button", "name": "Open workspace" }
+    },
+    {
+      "step_id": "menu_ready",
+      "action": "wait_for",
+      "locator": { "kind": "css", "selector": ".product-grid" },
+      "state": "visible",
+      "timeout_ms": 20000
+    },
+    {
+      "step_id": "add_coffee",
+      "action": "click",
+      "locator": {
+        "kind": "css",
+        "selector": "button[aria-label='Add Cappuccino, ₹160']"
+      }
+    },
+    {
+      "step_id": "add_food",
+      "action": "click",
+      "locator": {
+        "kind": "css",
+        "selector": "button[aria-label='Add Butter Croissant, ₹140']"
+      }
+    },
+    {
+      "step_id": "test_customer",
+      "action": "fill",
+      "locator": {
+        "kind": "css",
+        "selector": "input[aria-label='Customer name for loyalty']"
+      },
+      "value": { "source": "literal", "value": "Automated demo guest" }
+    },
+    {
+      "step_id": "open_payment",
+      "action": "click",
+      "locator": {
+        "kind": "role",
+        "role": "button",
+        "name": "Proceed to payment"
+      }
+    },
+    {
+      "step_id": "payment_ready",
+      "action": "wait_for",
+      "locator": { "kind": "css", "selector": ".payment-total" },
+      "state": "visible",
+      "timeout_ms": 20000
+    },
+    {
+      "step_id": "record_cash",
+      "action": "click",
+      "locator": {
+        "kind": "role",
+        "role": "button",
+        "name": "Record payment & finish"
+      }
+    },
+    {
+      "step_id": "receipt_ready",
+      "action": "wait_for",
+      "locator": { "kind": "css", "selector": ".receipt" },
+      "state": "visible",
+      "timeout_ms": 20000
+    }
+  ],
+  "capture": { "at_end": ["dom", "accessibility", "url"] }
+}

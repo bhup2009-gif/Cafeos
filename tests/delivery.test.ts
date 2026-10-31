@@ -1,0 +1,48 @@
+import {test,after} from "node:test";
+import assert from "node:assert/strict";
+import {mkdtempSync,rmSync} from "node:fs";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
+const dir=mkdtempSync(join(tmpdir(),"cafeos-delivery-"));
+process.env.CAFEOS_DATA_DIR=dir;process.env.CAFEOS_DEMO_PASSWORD="test-password-123";
+const {execute,snapshot}=await import("../lib/service");
+const {orderServiceLabel}=await import("../lib/types");
+const owner={id:"owner",name:"Owner",role:"owner"} as const;
+const manager={id:"manager",name:"Manager",role:"manager"} as const;
+const cashier={id:"cashier",name:"Cashier",role:"cashier"} as const;
+const barista={id:"barista",name:"Barista",role:"barista"} as const;
+const cmd=(action:string,payload:unknown,user:any=owner)=>execute(user,{operationId:crypto.randomUUID(),action,payload});
+const draft=()=>({id:crypto.randomUUID(),version:0,mode:"Online delivery",tableNo:null,deliveryServiceId:"zomato",deliveryServiceName:"Forged",customer:"",lines:[{id:crypto.randomUUID(),productId:"sandwich",qty:1,size:"Regular",addons:[],note:""}]});
+after(()=>rmSync(dir,{recursive:true,force:true}));
+test("provider list permissions, duplicates and stale updates",()=>{
+ assert.deepEqual(snapshot(cashier).deliveryServices.services.map(s=>s.name),["Zomato","Ola","Swiggy"]);
+ assert.throws(()=>cmd("deliveryService",{version:0,name:"New"},cashier),/role/);
+ assert.throws(()=>cmd("deliveryService",{version:0,name:"zomato"}),/already/);
+ cmd("deliveryService",{version:0,name:"Local courier"},manager);
+ assert.throws(()=>cmd("deliveryService",{version:0,name:"Other"}),/changed/);
+});
+test("ticket context, trusted name, removed provider retained on existing orders",()=>{
+ let o=cmd("saveOrder",draft(),cashier);
+ assert.equal(o.deliveryServiceName,"Zomato");
+ cmd("sendKitchen",{id:o.id,version:o.version},cashier);
+ assert.equal(snapshot(barista).tickets.find(t=>t.orderId===o.id)?.serviceLabel,"Delivery · Zomato");
+ cmd("deliveryService",{version:1,removeId:"zomato"});
+ assert.throws(()=>cmd("saveOrder",draft()),/available delivery/);
+ o=snapshot(owner).orders.find(x=>x.id===o.id)!;
+ const updated=cmd("saveOrder",o,cashier);assert.equal(updated.deliveryServiceName,"Zomato");
+ assert.throws(()=>cmd("saveOrder",{...draft(),deliveryServiceId:undefined}),/available delivery/);
+ assert.equal(orderServiceLabel({mode:"Dine-in",tableNo:2}),"Dine-in · Table 02");
+ assert.equal(orderServiceLabel({mode:"Delivery pickup"}),"Pickup");
+});
+test("customer exports include contact and consent, restrict roles and consent filter",async()=>{
+ const {put}=await import("../lib/db");
+ const {reportFor,reportCSV,reportXLSX}=await import("../lib/reports");
+ put("customers","contact-a",{id:"contact-a",name:"Example Customer",phone:"+919000000001",email:"example@test.invalid",marketingConsent:true,visits:2,points:0});
+ put("customers","contact-b",{id:"contact-b",name:"No consent",phone:"+919000000002",marketingConsent:false,visits:1,points:0});
+ assert.throws(()=>reportFor(cashier,"customers"),/role/);
+ assert.throws(()=>reportFor(barista,"customers"),/role/);
+ const all=reportFor(manager,"customers"),marketing=reportFor(owner,"customers-marketing");
+ assert.equal(all.rows.length,2);assert.equal(marketing.rows.length,1);
+ assert.ok(reportCSV(all).includes("example@test.invalid"));
+ assert.equal(reportXLSX(all).subarray(0,2).toString(),"PK");
+});

@@ -1,0 +1,9 @@
+"use client";
+import {useState} from "react";
+import type {AppData} from "@/lib/types";
+export default function CustomerContacts({customers,online}:{customers:AppData["customers"];online:boolean}) {
+ const [search,setSearch]=useState(""),[consented,setConsented]=useState(false);
+ const rows=customers.filter(c=>(!consented || c.marketingConsent) && `${c.name} ${c.phone || ""} ${c.email || ""}`.toLowerCase().includes(search.toLowerCase()));
+ const kind=consented?"customers-marketing":"customers";
+ return <div className="customer-contacts"><p>Customer details are saved when a bill is completed. Marketing consent is recorded during billing.</p><div className="customer-toolbar"><label>Search contacts<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Name, phone or email"/></label><label><input type="checkbox" checked={consented} onChange={e=>setConsented(e.target.checked)}/> Marketing consent only</label></div><div className="export-buttons"><a aria-disabled={!online} href={online?`/api/export?kind=${kind}&format=csv`:undefined}>Export CSV</a><a aria-disabled={!online} href={online?`/api/export?kind=${kind}&format=xlsx`:undefined}>Export Excel</a></div><p className="muted">Exports include {consented?"all customers with marketing consent":"all customer contacts"}, with consent status. Search filters the table only.</p><p>{rows.length} contacts shown</p><div className="customer-table"><table><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Marketing consent</th><th>Visits</th></tr></thead><tbody>{rows.map(c=><tr key={c.id}><td>{c.name}</td><td>{c.phone || "—"}</td><td>{c.email || "—"}</td><td>{c.marketingConsent?"Yes":"No"}</td><td>{c.visits}</td></tr>)}</tbody></table>{!rows.length&&<p>No customer contacts found. Details will appear after billing.</p>}</div></div>;
+}

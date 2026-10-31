@@ -1,0 +1,10 @@
+node_modules/
+.next/
+data/
+.env*
+*.tsbuildinfo
+test-results/
+
+# Keep the credential-free deployment template; ignore Vercel local settings.
+!.env.example
+.vercel/
