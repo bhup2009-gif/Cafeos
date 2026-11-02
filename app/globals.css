@@ -3429,3 +3429,14 @@ details > p {
 .customer-toolbar input[type=checkbox] { width:auto; }
 .customer-table { overflow-x:auto; }
 .customer-table td { overflow-wrap:anywhere; }
+.platform-page { max-width:1100px; margin:0 auto; padding:32px 20px; }
+.platform-page header { margin-bottom:24px; }
+.platform-page .panel { margin:16px 0; }
+.platform-form { display:grid; gap:16px; max-width:520px; }
+.platform-form label { display:grid; gap:6px; }
+.platform-form input,.platform-form select { width:100%; }
+.platform-form button,.platform-toolbar button { padding:12px 18px; border:1px solid #dce2d5; border-radius:8px; }
+.platform-toolbar { display:flex; justify-content:space-between; align-items:center; }
+.platform-page summary { cursor:pointer; padding:8px 0; font-weight:650; }
+.platform-page .inline-form { max-width:none; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); align-items:end; }
+.private-key { display:block; overflow-wrap:anywhere; padding:16px; }

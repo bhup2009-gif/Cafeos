@@ -1,5 +1,3 @@
-# Platform services — planned
+# Cloud implementation
 
-Own subscribers, outlets, subscription plans, entitlement periods, renewals and suspension.
-Subscription expiry changes access only: never delete subscriber data on expiry or suspension.
-Use a database transaction for changes and their audit record. Track platform admin identity.
+See `docs/deployment.md`, `docs/architecture.md`, and `docs/recovery-and-backups.md` at the repository root. Runtime code is in `lib/cloud`, the API routes and the route pages. Automated cloud checks are in `tests/cloud.test.ts`.

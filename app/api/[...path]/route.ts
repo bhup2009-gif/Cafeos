@@ -1,3 +1,5 @@
+import {outletRequest,subscriberLogin,subscriberIdentity,manageStaff} from "@/lib/cloud/access";
+import {cloudMode,currentCloudSubscription} from "@/lib/db";
 import {
   reportFor,
   reportCSV,
@@ -29,7 +31,7 @@ function failure(error: unknown) {
       },
       { status: 400 },
     );
-  console.error(error);
+  console.error("Request failed", {code: (error as {code?:string})?.code || "INTERNAL"});
   return NextResponse.json(
     {
       error:
@@ -38,7 +40,7 @@ function failure(error: unknown) {
     { status: 500 },
   );
 }
-export async function GET(request: NextRequest) {
+async function getLocal(request: NextRequest) {
   try {
     subscriptionSnapshot();
     if (request.nextUrl.pathname === "/api/export") {
@@ -90,14 +92,21 @@ export async function GET(request: NextRequest) {
     }
     if (request.nextUrl.pathname !== "/api/state")
       throw new DomainError("Not found", 404);
-    return NextResponse.json(snapshot(authenticate(request)), {
+    const state=snapshot(authenticate(request));
+    if(cloudMode()) {
+      const identity=currentCloudSubscription()!;
+      state.workspaceKey=`${identity.tenantId}:${identity.outletId}:${state.user.id}`;
+      state.cloud=true;
+      state.outletCode=identity.outletCode;
+    }
+    return NextResponse.json(state, {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (e) {
     return failure(e);
   }
 }
-export async function POST(request: NextRequest) {
+async function postLocal(request: NextRequest) {
   try {
     const origin = request.headers.get("origin");
     let sameOrigin = false;
@@ -109,7 +118,6 @@ export async function POST(request: NextRequest) {
     } catch {}
     if (!sameOrigin)
       throw new DomainError("Cross-origin request rejected", 403);
-    subscriptionSnapshot();
     const raw = await request.text();
     if (raw.length > 900000) throw new DomainError("Request too large", 413);
     let body;
@@ -122,11 +130,12 @@ export async function POST(request: NextRequest) {
     if (path === "/api/login") {
       const input = z
         .object({
-          id: z.enum(["owner", "manager", "cashier", "barista"]),
+          id: z.string().min(1).max(80),
           password: z.string().min(1).max(200),
+          outletCode: z.string().trim().min(1).max(40).optional(),
         })
         .parse(body);
-      const { token, user } = login(input.id, input.password);
+      const { token, user } = await subscriberLogin(request,input);
       const response = NextResponse.json({ user });
       response.cookies.set("cafeos_session", token, {
         httpOnly: true,
@@ -145,9 +154,25 @@ export async function POST(request: NextRequest) {
       res.cookies.delete("cafeos_session");
       return res;
     }
+    if(path === "/api/staff") {
+      const input=z.object({id:z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/),name:z.string().trim().min(1).max(80),role:z.enum(["manager","cashier","barista"]),password:z.string().min(12).max(200)}).parse(body);
+      manageStaff(user,input);
+      return NextResponse.json({ok:true});
+    }
     if (path !== "/api/command") throw new DomainError("Not found", 404);
     return NextResponse.json({ result: execute(user, body) });
   } catch (e) {
     return failure(e);
   }
+}
+
+export async function GET(request:NextRequest) {
+ if(request.nextUrl.pathname==="/api/runtime")return NextResponse.json({cloud:cloudMode()},{headers:{"Cache-Control":"no-store"}});
+ try {return await outletRequest(request,false,()=>getLocal(request));}catch(e){return failure(e);}
+}
+export async function POST(request:NextRequest) {
+ try {
+   if(request.nextUrl.pathname==="/api/login")return await postLocal(request);
+   return await outletRequest(request,true,()=>postLocal(request));
+ }catch(e){return failure(e);}
 }

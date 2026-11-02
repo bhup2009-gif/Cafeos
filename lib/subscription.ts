@@ -1,6 +1,7 @@
-import { db, get } from "./db";
+import { db, get, currentCloudSubscription } from "./db";
 import { indiaDay } from "./types";
 export type Subscription = {
+  cloud?:boolean;
   installedOn: string;
   expiresOn: string;
   reminderOn: string;
@@ -32,6 +33,11 @@ export function subscriptionStatus(installedOn: string, checkedOn: string): Subs
 // Called only from runtime requests, never during builds. Stored once per outlet DB.
 export function subscriptionSnapshot(now = new Date()) {
   const today = indiaDay(now);
+  const cloud=currentCloudSubscription();
+  if(cloud) {
+    const expiresOn=indiaDay(cloud.expiresAt), daysRemaining=Math.ceil((Date.parse(cloud.expiresAt)-now.getTime())/DAY);
+    return {cloud:true,installedOn:indiaDay(cloud.installedOn),expiresOn,checkedOn:today,daysRemaining,reminderOn:indiaDay(new Date(Date.parse(cloud.expiresAt)-10*DAY)),status:daysRemaining<=0?"expired" as const:daysRemaining<=10?"renewal-due" as const:"free" as const,supportPhone:"9713921705"};
+  }
   db.prepare("INSERT OR IGNORE INTO metadata(id,data) VALUES(?,?)")
     .run("subscription", JSON.stringify({ installedOn: today }));
   const stored = get<{ installedOn: string }>("metadata", "subscription")!;

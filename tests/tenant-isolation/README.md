@@ -1,12 +1,3 @@
-# Tenant isolation tests — to implement
+# Cloud implementation
 
-These are acceptance criteria, not passing automated tests.
-
-- Subscriber A cannot read/update/export Subscriber B data using guessed IDs.
-- Every order, kitchen ticket, stock event, customer, supplier, payroll row, file and report is scoped.
-- Staff can only access assigned outlets and allowed roles.
-- Database policies and server authorization both enforce boundaries.
-- Service-role operations require explicit authorized tenant scope.
-- Replay/idempotency keys, invoice numbers, sessions and offline caches do not collide across tenants.
-- Platform administrative actions require separate authorization and leave audit records.
-- Anonymous access and invalid/missing tenant context fail closed.
+See `docs/deployment.md`, `docs/architecture.md`, and `docs/recovery-and-backups.md` at the repository root. Runtime code is in `lib/cloud`, the API routes and the route pages. Automated cloud checks are in `tests/cloud.test.ts`.

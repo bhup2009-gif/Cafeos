@@ -1,5 +1,5 @@
 // Network-first assets keep team themes and app updates fresh, with cached offline fallback.
-const CACHE = "cafeos-shell-v3";
+const CACHE = "cafeos-shell-v4";
 self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -28,7 +28,9 @@ self.addEventListener("fetch", (event) => {
     event.request.method !== "GET" ||
     url.origin !== self.location.origin ||
     url.pathname.startsWith("/api/") ||
-    url.pathname.startsWith("/receipt/")
+    url.pathname.startsWith("/receipt/") ||
+    url.pathname.startsWith("/reports/") ||
+    url.pathname.startsWith("/platform")
   )
     return;
   const navigation = event.request.mode === "navigate";

@@ -1,3 +1,3 @@
-# Account activation — planned
+# Cloud implementation
 
-Future URL: `/activate`. Use expiring, single-use activation tokens. Do not expose starter credentials or reuse the local demo account setup in production.
+See `docs/deployment.md`, `docs/architecture.md`, and `docs/recovery-and-backups.md` at the repository root. Runtime code is in `lib/cloud`, the API routes and the route pages. Automated cloud checks are in `tests/cloud.test.ts`.

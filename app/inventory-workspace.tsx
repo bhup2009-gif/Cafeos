@@ -9,7 +9,7 @@ import { expenseReasons, paymentLabels, supplierBalance, type PaidFrom, type Sup
 type Pane = "home" | "stock" | "purchases" | "expenses" | "suppliers" | "accounts" | "payroll" | "ca";
 type PurchaseLine = { key:string; ingredientId:string; quantity:string; amount:string };
 type ExpenseRow = { key:string; reason:string; amount:string; explanation:string; employeeId:string; supplierId:string; paidAmount:string; paidFrom:PaidFrom; credit:boolean };
-const uid = () => crypto.randomUUID();
+const uid = ():string => crypto.randomUUID();
 const purchaseLine = ():PurchaseLine => ({key:uid(),ingredientId:"",quantity:"",amount:""});
 const expenseRow = ():ExpenseRow => ({key:uid(),reason:"Other",amount:"",explanation:"",employeeId:"",supplierId:"",paidAmount:"0",paidFrom:"cash",credit:false});
 function paise(v:string) { if (!/^\d+(\.\d{1,2})?$/.test(v.trim())) throw Error("Enter amounts in rupees with up to 2 decimals."); const [whole,dec=""] = v.trim().split("."); const n=Number(whole)*100+Number(dec.padEnd(2,"0")); if(!Number.isSafeInteger(n))throw Error("Amount is too large");return n; }

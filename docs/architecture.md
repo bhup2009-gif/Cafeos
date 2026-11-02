@@ -1,29 +1,13 @@
-# CaféOS cloud architecture — proposed foundation
+# Cloud architecture
 
-Status: structure only. The operational app is still local SQLite at `/`. `/login`, `/activate`, `/recovery`, `/pos` and `/platform` are reserved folders, not functioning routes.
+Vercel Node 24 handles requests. PostgreSQL schema `cafeos_cloud` stores subscriber subscriptions, outlets, sessions, administrator hashes and audit records. `public` schema is not used; browser Supabase database access is not enabled by this app.
 
-## Intended deployment
+The first cloud release uses a per-outlet JSONB aggregate, hydrated into an isolated in-memory SQLite engine through AsyncLocalStorage. Existing synchronous domain transactions remain unchanged. PostgreSQL transactions lock the outlet and subscriber on writes, run the domain operation, then replace the aggregate atomically. Exceptions roll back the remote write. Reads hydrate an independent copy; no global outlet state is reused. Local SQLite is lazy and unavailable in cloud mode outside an authenticated outlet scope.
 
-- Vercel hosts Next.js UI and server request handlers.
-- Supabase PostgreSQL persists identity, subscribers, outlets and business data.
-- Supabase Storage stores assets; realtime updates synchronize counter/kitchen views.
-- An email provider delivers activation, recovery and subscription notifications.
-- Separate encrypted backups and external monitoring support recovery.
+Opaque session hashes resolve the outlet on the server. Browser-supplied outlet IDs only locate login accounts, never authorize ongoing requests. The server sets transaction-local outlet scope and switches to the restricted `cafeos_outlet_runtime` role for reading/writing aggregates. PostgreSQL RLS rejects other outlets. Central authentication and platform operations use server database credentials and explicit server authorization. Never send database credentials to the browser.
 
-## Access model
+Every protected request checks subscriber status and exact expiry timestamp. Staff passwords and role changes revoke staff sessions; admin key replacement revokes admin sessions. Three alternative keys are not MFA. Tenants/outlets are never deleted by subscription commands.
 
-Platform administrators manage the service. Subscriber owners manage their own business; managers, cashiers and kitchen staff have restricted roles and assigned outlets.
-Every operation must authorize identity, role, subscriber/outlet and subscription state. Client-provided IDs never grant access. Public Supabase access requires tested row-level security and grants; server credentials must not bypass application checks accidentally.
+Platform administrators manage subscribers, additional outlets, limits, renewals, suspension and owner recovery. Subscriber owners/managers manage their own staff. Platform sessions cannot act as subscriber sessions and vice versa. Each outlet has separate staff identities in this pilot.
 
-Admin login: admin ID + password + any one of three separately hashed/revocable keys. This is not MFA. Recovery follows `recovery-and-backups.md`.
-
-Subscription expiry/suspension blocks login and protected requests for active sessions, but retains records. Renewal restores access to the same data. Retention is independent of subscription state.
-
-## Existing behaviour to preserve
-
-Billing and stock changes remain atomic and replay-safe. Keep optimistic versions, integer money, role checks, kitchen item actions, audit history, backdated entries and exports. Scope cache/offline data to user, subscriber and outlet and clear accessible caches on logout or account switching.
-
-## Release boundaries
-
-First cloud release: online billing, tables, kitchen, inventory, expenses, salary accounts, contacts, exports and browser printing after migration/testing.
-Offline billing/sync, silent printer bridges, payment processing, delivery-provider APIs and marketing delivery are separate integrations. Provider selection currently labels orders; it does not import external orders.
+For scale, normalize aggregates into scoped PostgreSQL tables and add pagination, connection/load budgets and archive reads. The current whole-state design and 32 MiB aggregate cap are intended for controlled testing. Backups, printer bridges, offline sync, external payment/delivery integrations and notification delivery need separate operations/integrations; see deployment.md.

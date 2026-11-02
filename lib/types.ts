@@ -128,6 +128,9 @@ export type TeamNotice = {
   archived: boolean;
 };
 export type AppData = {
+  cloud?:boolean;
+  workspaceKey?:string;
+  outletCode?:string;
   pantry: import("./pantry-types").PantryData;
   subscription?: import("./subscription").Subscription;
   user: User;

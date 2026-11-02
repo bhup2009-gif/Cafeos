@@ -1,3 +1,4 @@
+import {outletRequest} from "@/lib/cloud/access";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { authenticate } from "@/lib/auth";
@@ -10,23 +11,11 @@ export default async function Receipt({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  let allowed = false;
-  try {
-    const h = await headers();
-    const user = authenticate(
-      new Request("http://localhost", {
-        headers: { cookie: h.get("cookie") || "" },
-      }),
-    );
-    allowed = user.role !== "barista";
-  } catch {}
-  if (!allowed)
-    return (
-      <main className="print-page">
-        <h1>Sign in to view receipts.</h1>
-        <a href="/">Open CaféOS</a>
-      </main>
-    );
+  const h=await headers();
+  const request=new Request("http://localhost",{headers:{cookie:h.get("cookie")||""}});
+  try {return await outletRequest(request,false,async()=>{
+  const user=authenticate(request);
+  if(user.role === "barista") throw Error("Access denied");
   const { id } = await params;
   const o = get<Order>("orders", id);
   if (!o) notFound();
@@ -90,4 +79,5 @@ export default async function Receipt({
       <Print />
     </main>
   );
+  });}catch {return <main className="print-page"><h1>Sign in with an active subscription to view receipts.</h1><a href="/">Open CaféOS</a></main>;}
 }

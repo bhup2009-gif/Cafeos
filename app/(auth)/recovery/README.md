@@ -1,4 +1,3 @@
-# Recovery — planned
+# Cloud implementation
 
-Future URL: `/recovery`. Use verified recovery email, expiring single-use tokens, rate limits and generic responses. Password/key resets revoke sessions and generate audit records.
-See `docs/recovery-and-backups.md`. No reset endpoint is implemented yet.
+See `docs/deployment.md`, `docs/architecture.md`, and `docs/recovery-and-backups.md` at the repository root. Runtime code is in `lib/cloud`, the API routes and the route pages. Automated cloud checks are in `tests/cloud.test.ts`.

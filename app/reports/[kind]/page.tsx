@@ -1,3 +1,4 @@
+import {outletRequest} from "@/lib/cloud/access";
 import { headers } from "next/headers";
 import { authenticate, DomainError } from "@/lib/auth";
 import { reportFor } from "@/lib/reports";
@@ -12,6 +13,7 @@ export default async function ReportPage({
   let report;
   try {
     const h = await headers();
+    report=await outletRequest(new Request("http://localhost",{headers:{cookie:h.get("cookie")||""}}),false,async()=>{
     const user = authenticate(
       new Request("http://localhost", {
         headers: { cookie: h.get("cookie") || "" },
@@ -20,7 +22,8 @@ export default async function ReportPage({
     const { kind } = await params;
     if (!["customers", "customers-marketing", "orders", "inventory", "ca-transactions", "ca-suppliers", "ca-payroll", "ca-stock"].includes(kind)) throw Error();
     const range=await searchParams;
-    report = reportFor(user, kind,range.from,range.to);
+    return reportFor(user, kind,range.from,range.to);
+    });
   } catch (error) {
     return (
       <main className="print-page">

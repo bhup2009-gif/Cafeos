@@ -56,7 +56,8 @@ import {
 import { totals } from "@/lib/money";
 import { cashOutflowForDay } from "@/lib/pantry-types";
 import { prepareOrderSwitch, restoreTableAssignment } from "@/lib/order-switch";
-import { localRead, localWrite } from "@/lib/offline";
+import { localRead as deviceRead, localWrite as deviceWrite } from "@/lib/offline";
+import StaffAccounts from "./staff-accounts";
 import CustomerContacts from "./customer-contacts";
 import DeliveryServices from "./delivery-services";
 import ThemePicker from "./theme-picker";
@@ -72,6 +73,10 @@ import {
   NoticeBoard,
 } from "./communications";
 import { themes, type ThemeId } from "@/lib/themes";
+// Cloud release is online-only: never restore a cached financial snapshot after expiry/logout.
+let cloudRuntime = true;
+const localRead = <T,>(key:string):Promise<T|undefined> => cloudRuntime ? Promise.resolve(undefined) : deviceRead<T>(key);
+const localWrite = (key:string,value:unknown):Promise<void> => cloudRuntime ? Promise.resolve() : deviceWrite(key,value);
 type View =
   | "POS"
   | "Tables"
@@ -94,7 +99,7 @@ type Draft = Pick<
   | "lines"
   | "discountBps"
 >;
-const uid = () => crypto.randomUUID();
+const uid = ():string => crypto.randomUUID();
 const blank = (): Draft => ({
   id: uid(),
   version: 0,
@@ -179,6 +184,9 @@ function Modal({
   );
 }
 export default function CafeOS() {
+  const [cloud,setCloud]=useState(true);
+  const [outletCode,setOutletCode]=useState("");
+  const runtimeKnown=useRef(false);
   const [data, setData] = useState<AppData | null>(null),
     [loaded, setLoaded] = useState(false),
     [view, setView] = useState<View>("POS"),
@@ -239,13 +247,19 @@ export default function CafeOS() {
     setTimeout(() => setToast(""), 4200);
   };
   const refresh = async () => {
+    if(!runtimeKnown.current) {
+      const runtime=await fetch("/api/runtime",{cache:"no-store"});
+      if(!runtime.ok)throw Error("Cannot verify workspace mode");
+      const config=await runtime.json();cloudRuntime=config.cloud;setCloud(config.cloud);runtimeKnown.current=true;
+    }
     const r = await fetch("/api/state", { cache: "no-store" });
-    if (r.status === 401) {
+    if (r.status === 401 || r.status === 403) {
       localStorage.removeItem("cafeos-last-user");
-      setData(null);
+      setData(null);setDraft(null);setUnassigned([]);setPending([]);setModal("");hydrated.current="";
+      if(r.status===403)setError((await r.json()).error || "Subscription inactive. Your data is retained.");
       return;
     }
-    if (!r.ok) throw Error("Could not refresh café data");
+    if (!r.ok) {if(cloudRuntime)setData(null);throw Error("Could not refresh café data");}
     const d = (await r.json()) as AppData;
     setData(d);
     await localWrite(`snapshot:${d.user.id}`, d);
@@ -256,7 +270,7 @@ export default function CafeOS() {
     setOnline(navigator.onLine);
     refresh()
       .catch(async () => {
-        const id = localStorage.getItem("cafeos-last-user");
+        const id = cloudRuntime ? null : localStorage.getItem("cafeos-last-user");
         const cached = id
           ? await localRead<AppData>(`snapshot:${id}`)
           : undefined;
@@ -345,6 +359,7 @@ export default function CafeOS() {
     setBusy(true);
     setError("");
     try {
+      if(cloudRuntime && !navigator.onLine)throw Error("Internet is required to save cloud orders.");
       await fn();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -622,7 +637,7 @@ export default function CafeOS() {
       const r = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: loginId, password }),
+        body: JSON.stringify({ id: loginId, password, ...(cloud ? {outletCode} : {}) }),
       });
       const x = await r.json();
       if (!r.ok) throw Error(x.error);
@@ -703,14 +718,14 @@ export default function CafeOS() {
               cup.
             </p>
             <div className="login-foot">
-              <ShieldCheck size={18} /> Your café data stays on this local
-              server.
+              <ShieldCheck size={18} /> {cloud ? "Secure cloud workspace for your outlet." : "Your café data stays on this local server."}
             </div>
           </div>
           <form className="login-form" onSubmit={doLogin}>
-            <span className="eyebrow">THE DAILY GRIND · LOCAL WORKSPACE</span>
+            <span className="eyebrow">CAFÉOS · WORKSPACE</span>
             <h2>Welcome to your shift.</h2>
             <p>Sign in to open your café workspace.</p>
+            {cloud ? <><label>Outlet ID<input required autoComplete="organization" value={outletCode} onChange={e=>setOutletCode(e.target.value)} placeholder="e.g. CAFE001"/></label><label>Staff ID<input required autoComplete="username" value={loginId} onChange={e=>setLoginId(e.target.value)}/></label></> : <>
             <label>
               Staff account
               <select
@@ -723,6 +738,7 @@ export default function CafeOS() {
                 <option value="barista">Kabir · Barista</option>
               </select>
             </label>
+            </>}
             <label>
               Password
               <input
@@ -743,8 +759,7 @@ export default function CafeOS() {
               <ArrowRight size={18} />
             </button>
             <small>
-              Starter passwords are in <code>data/starter-credentials.txt</code>
-              . Change them in Staff before operational use.
+              {cloud ? <>Use the outlet ID and staff credentials supplied by your administrator. <a href="/platform">Platform admin</a></> : <>Starter passwords are in <code>data/starter-credentials.txt</code>. Change them in Staff before operational use.</>}
             </small>
           </form>
         </div>
@@ -819,7 +834,7 @@ export default function CafeOS() {
             <span className="divider" />
             <span className="outlet-name">
               {data.settings.outlet}
-              <small>INDIRANAGAR, BENGALURU</small>
+              <small>{cloud ? `Outlet ${data.outletCode || ""}` : "INDIRANAGAR, BENGALURU"}</small>
             </span>
           </div>
           <TeamNoticeStrip
@@ -1229,8 +1244,8 @@ export default function CafeOS() {
                   </button>
                 </div>
                 <p className="cart-hint">
-                  <ShieldCheck size={12} /> Draft saved on this device ·{" "}
-                  {online ? "ready to bill" : "payment needs connection"}
+                  <ShieldCheck size={12} /> {cloud ? "Hold or send to save this order" : "Draft saved on this device"} ·{" "}
+                  {online ? "ready to bill" : "connection required"}
                 </p>
               </div>
             </aside>
@@ -1927,6 +1942,7 @@ export default function CafeOS() {
               title="Your workspace"
               description="A clear role for every member of the team."
             />
+            {cloud && manager && <StaffAccounts/>}
             {manager && <DeliveryServices config={data.deliveryServices} busy={busy} onChange={payload=>perform(async()=>{await api("deliveryService",payload); await refresh();})} />}
             <div className="insight-grid">
               <section className="panel">
@@ -1970,7 +1986,7 @@ export default function CafeOS() {
                       });
                       hydrated.current = "";
                       localStorage.removeItem("cafeos-last-user");
-                      setData(null);
+                      setData(null);setDraft(null);setPending([]);setUnassigned([]);setReceipt(null);setModal("");hydrated.current="";
                       setDraft(null);
                       setView("POS");
                     })
